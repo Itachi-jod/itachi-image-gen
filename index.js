@@ -1,33 +1,39 @@
-const axios = require("axios");
+const express = require('express');
+const axios = require('axios');
 
-module.exports = async (req, res) => {
+const app = express();
+app.use(express.json());
+
+// POST endpoint for image generation
+app.post('/api/generate', async (req, res) => {
   try {
-    // Get prompt from query or POST body
-    const prompt = req.query.prompt || (req.body && req.body.prompt);
-    if (!prompt) return res.status(400).send("Prompt is required");
+    const prompt = req.body.prompt;
+    if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
-    // Call Magic Studio API
+    const apiUrl = 'https://al-api.magicstudio.com/api/al-art-generator';
+    
+    // Call the backend API
     const response = await axios({
-      method: "POST",
-      url: "https://al-api.magicstudio.com/api/al-art-generator",
-      data: { prompt }, // JSON payload
-      responseType: "stream", // important to get image as stream
+      method: 'POST',
+      url: apiUrl,
       headers: {
-        "Content-Type": "application/json",
-        "Origin": "https://magicstudio.com",
-        "Referer": "https://magicstudio.com/al-art-generator/",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-      }
+        'Content-Type': 'application/json'
+      },
+      data: {
+        prompt
+      },
+      responseType: 'stream'
     });
 
-    // Forward content-type from API to client
-    res.setHeader("Content-Type", response.headers["content-type"] || "image/jpeg");
-
-    // Pipe image stream directly to client
+    // Stream the image back to the client
+    res.setHeader('Content-Type', 'image/jpeg');
     response.data.pipe(res);
 
   } catch (err) {
-    console.error("❌ Image generation error:", err.message || err);
-    res.status(500).send("Internal server error");
+    console.error('❌ Error generating image:', err.message);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
-};
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
