@@ -1,45 +1,33 @@
-const express = require("express");
 const axios = require("axios");
-const bodyParser = require("body-parser");
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// Parse JSON body
-app.use(bodyParser.json());
-
-app.post("/generate", async (req, res) => {
+module.exports = async (req, res) => {
   try {
-    const { prompt, style, size } = req.body;
-
-    if (!prompt) return res.status(400).json({ error: "Prompt is required" });
+    // Get prompt from query or POST body
+    const prompt = req.query.prompt || (req.body && req.body.prompt);
+    if (!prompt) return res.status(400).send("Prompt is required");
 
     // Call Magic Studio API
-    const response = await axios.post(
-      "https://al-api.magicstudio.com/api/al-art-generator",
-      {
-        prompt,
-        style: style || "default",
-        size: size || "1024x1024"
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "Origin": "https://magicstudio.com",
-          "Referer": "https://magicstudio.com/al-art-generator/"
-        }
+    const response = await axios({
+      method: "POST",
+      url: "https://al-api.magicstudio.com/api/al-art-generator",
+      data: { prompt }, // JSON payload
+      responseType: "stream", // important to get image as stream
+      headers: {
+        "Content-Type": "application/json",
+        "Origin": "https://magicstudio.com",
+        "Referer": "https://magicstudio.com/al-art-generator/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
       }
-    );
+    });
 
-    // Return the API response directly
-    res.json(response.data);
+    // Forward content-type from API to client
+    res.setHeader("Content-Type", response.headers["content-type"] || "image/jpeg");
+
+    // Pipe image stream directly to client
+    response.data.pipe(res);
 
   } catch (err) {
-    console.error("Error generating image:", err.message);
-    res.status(500).json({ error: "Failed to generate image" });
+    console.error("❌ Image generation error:", err.message || err);
+    res.status(500).send("Internal server error");
   }
-});
-
-app.listen(PORT, () => {
-  console.log(`AI Art Generator API running on port ${PORT}`);
-});
+};
